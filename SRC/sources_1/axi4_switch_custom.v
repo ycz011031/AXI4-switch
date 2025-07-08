@@ -29,30 +29,51 @@ module axi4_switch_custom
     input wire       rst_n,
     input wire [1:0] s_req_supress,
        
-    //AXI4 slave interface 0 (connect to master)
+    // AXI4-Stream slave interface 0 (connects to master)
+    (* X_INTERFACE_INFO = "xilinx.com:interface:axis:1.0 axi_s0_i TDATA"  *)
     input  wire [TDATA_L-1 : 0] axi_s0_tdata_i,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:axis:1.0 axi_s0_i TUSER"  *)
     input  wire [TUSER_L-1 : 0] axi_s0_tuser_i,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:axis:1.0 axi_s0_i TLAST"  *)
     input  wire                 axi_s0_tlast_i,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:axis:1.0 axi_s0_i TKEEP"  *)
     input  wire [TKEEP_L-1 : 0] axi_s0_tkeep_i,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:axis:1.0 axi_s0_i TVALID" *)
     input  wire                 axi_s0_tvalid_i,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:axis:1.0 axi_s0_i TREADY" *)
     output reg                  axi_s0_tready_o,
     
-    //AXI4 slave interface 1
+    // AXI4-Stream slave interface 1
+    (* X_INTERFACE_INFO = "xilinx.com:interface:axis:1.0 axi_s1_i TDATA"  *)
     input  wire [TDATA_L-1 : 0] axi_s1_tdata_i,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:axis:1.0 axi_s1_i TUSER"  *)
     input  wire [TUSER_L-1 : 0] axi_s1_tuser_i,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:axis:1.0 axi_s1_i TLAST"  *)
     input  wire                 axi_s1_tlast_i,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:axis:1.0 axi_s1_i TKEEP"  *)
     input  wire [TKEEP_L-1 : 0] axi_s1_tkeep_i,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:axis:1.0 axi_s1_i TVALID" *)
     input  wire                 axi_s1_tvalid_i,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:axis:1.0 axi_s1_i TREADY" *)
     output reg                  axi_s1_tready_o,
     
+    // AXI4-Stream master interface 0 (output)
+    (* X_INTERFACE_INFO = "xilinx.com:interface:axis:1.0 axi_m0_o TDATA"  *)
     output reg  [TDATA_L-1 : 0] axi_m0_tdata_o,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:axis:1.0 axi_m0_o TUSER"  *)
     output reg  [TUSER_L-1 : 0] axi_m0_tuser_o,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:axis:1.0 axi_m0_o TLAST"  *)
     output reg                  axi_m0_tlast_o,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:axis:1.0 axi_m0_o TKEEP"  *)
     output reg  [TKEEP_L-1 : 0] axi_m0_tkeep_o,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:axis:1.0 axi_m0_o TVALID" *)
     output reg                  axi_m0_tvalid_o,
+    (* X_INTERFACE_INFO = "xilinx.com:interface:axis:1.0 axi_m0_o TREADY" *)
     input  wire                 axi_m0_tready_i
+);
     
-    );
+    
+
 
 localparam NUM_IN = 2;
 

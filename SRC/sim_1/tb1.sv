@@ -17,18 +17,18 @@ module axi4_switch_custom_tb();
   integer cycle = 0;
 
   // AXI4-Stream signals
-  reg  [TDATA_L-1:0] axi_s0_tdata_i;
-  reg  [TUSER_L-1:0] axi_s0_tuser_i;
-  reg                axi_s0_tlast_i;
-  reg  [TKEEP_L-1:0] axi_s0_tkeep_i;
-  reg                axi_s0_tvalid_i;
+  reg  [TDATA_L-1:0] axi_s0_tdata_i = 'x;
+  reg  [TUSER_L-1:0] axi_s0_tuser_i = 'x;
+  reg                axi_s0_tlast_i = 'x;
+  reg  [TKEEP_L-1:0] axi_s0_tkeep_i = 'x;
+  reg                axi_s0_tvalid_i = 0;
   wire               axi_s0_tready_o;
 
-  reg  [TDATA_L-1:0] axi_s1_tdata_i;
-  reg  [TUSER_L-1:0] axi_s1_tuser_i;
-  reg                axi_s1_tlast_i;
-  reg  [TKEEP_L-1:0] axi_s1_tkeep_i;
-  reg                axi_s1_tvalid_i;
+  reg  [TDATA_L-1:0] axi_s1_tdata_i = 'x;
+  reg  [TUSER_L-1:0] axi_s1_tuser_i = 'x;
+  reg                axi_s1_tlast_i = 'x;
+  reg  [TKEEP_L-1:0] axi_s1_tkeep_i = 'x;
+  reg                axi_s1_tvalid_i = 0;
   wire               axi_s1_tready_o;
 
   wire [TDATA_L-1:0] axi_m0_tdata_o;
@@ -69,59 +69,109 @@ module axi4_switch_custom_tb();
     .axi_m0_tready_i(axi_m0_tready_i)
   );
 
-  reg [TDATA_L-1:0] expected_data [0:MAX_EXPECTED-1];
-  reg [TUSER_L-1:0] expected_user [0:MAX_EXPECTED-1];
-  reg               expected_last [0:MAX_EXPECTED-1];
-  reg finished = '0;
-  reg error    = '0;
-  integer expected_head = 0;
-  integer expected_tail = 0;
+  reg [TDATA_L-1:0] expected_data_0 [0:MAX_EXPECTED-1];
+  reg [TUSER_L-1:0] expected_user_0 [0:MAX_EXPECTED-1];
+  reg               expected_last_0 [0:MAX_EXPECTED-1];
+  reg [TDATA_L-1:0] expected_data_1 [0:MAX_EXPECTED-1];
+  reg [TUSER_L-1:0] expected_user_1 [0:MAX_EXPECTED-1];
+  reg               expected_last_1 [0:MAX_EXPECTED-1];
+  integer expected_head_0 = 0, expected_tail_0 = 0;
+  integer expected_head_1 = 0, expected_tail_1 = 0;
 
-  task push_expected(input [TDATA_L-1:0] data, input [TUSER_L-1:0] user, input bit last);
+  integer port0_counter = 0;
+  integer port1_counter = 0;
+
+  task push_expected(input integer port, input [TDATA_L-1:0] data, input [TUSER_L-1:0] user, input bit last);
     begin
-      expected_data[expected_tail] = data;
-      expected_user[expected_tail] = user;
-      expected_last[expected_tail] = last;
-      expected_tail = expected_tail + 1;
+      if (port == 0) begin
+        expected_data_0[expected_tail_0] = data;
+        expected_user_0[expected_tail_0] = user;
+        expected_last_0[expected_tail_0] = last;
+        expected_tail_0++;
+      end else begin
+        expected_data_1[expected_tail_1] = data;
+        expected_user_1[expected_tail_1] = user;
+        expected_last_1[expected_tail_1] = last;
+        expected_tail_1++;
+      end
     end
   endtask
 
   task pop_and_check_output;
+    reg [TDATA_L-1:0] exp_data;
+    reg [TUSER_L-1:0] exp_user;
+    reg               exp_last;
     begin
-      expected_head = expected_head + 1;
+      if (axi_m0_tdata_o[28] == 1'b0) begin // Port 0: MSB = 0xA = 1010
+        exp_data = expected_data_0[expected_head_0];
+        exp_user = expected_user_0[expected_head_0];
+        exp_last = expected_last_0[expected_head_0];
+        expected_head_0++;
+      end else begin
+        exp_data = expected_data_1[expected_head_1];
+        exp_user = expected_user_1[expected_head_1];
+        exp_last = expected_last_1[expected_head_1];
+        expected_head_1++;
+      end
+
+      if (axi_m0_tdata_o !== exp_data || axi_m0_tuser_o !== exp_user || axi_m0_tlast_o !== exp_last) begin
+        $fatal("Mismatch: Got {data=%h, user=%h, last=%b}, Expected {data=%h, user=%h, last=%b}",
+          axi_m0_tdata_o, axi_m0_tuser_o, axi_m0_tlast_o, exp_data, exp_user, exp_last);
+      end
     end
   endtask
 
-  task send_beat(input integer port, input [TDATA_L-1:0] data, input [TUSER_L-1:0] user, input bit last);
+  task send_beat(input integer port, input bit last);
+    reg [TDATA_L-1:0] data;
+    reg [TUSER_L-1:0] user;
     begin
-      push_expected(data, user, last);
       if (port == 0) begin
+        data = {480'h0, 32'hA0A00000 + port0_counter};
+        user = {480'h0, 32'hA0A00000 + port0_counter};
+        port0_counter++;
         axi_s0_tdata_i  = data;
         axi_s0_tuser_i  = user;
         axi_s0_tkeep_i  = {TKEEP_L{1'b1}};
         axi_s0_tlast_i  = last;
         axi_s0_tvalid_i = 1;
-        wait (axi_s0_tready_o);
+        push_expected(0, data, user, last);
         @(posedge clk);
-        axi_s0_tvalid_i = 0;
-        axi_s0_tlast_i  = 'x;
+        if (axi_s0_tready_o) begin
+          axi_s0_tvalid_i = 0;
+          axi_s0_tlast_i  = 'x;
+        end else begin
+          wait (axi_s0_tready_o);
+          @(posedge clk);
+          axi_s0_tvalid_i = 0;
+          axi_s0_tlast_i  = 'x;
+        end
       end else begin
+        data = {480'h0, 32'hB0B00000 + port1_counter};
+        user = {480'h0, 32'hB0B00000 + port1_counter};
+        port1_counter++;
         axi_s1_tdata_i  = data;
         axi_s1_tuser_i  = user;
         axi_s1_tkeep_i  = {TKEEP_L{1'b1}};
         axi_s1_tlast_i  = last;
         axi_s1_tvalid_i = 1;
-        wait (axi_s1_tready_o);
+        push_expected(1, data, user, last);
         @(posedge clk);
-        axi_s1_tvalid_i = 0;
-        axi_s1_tlast_i  = 'x;
+        if (axi_s1_tready_o) begin
+          axi_s1_tvalid_i = 0;
+          axi_s1_tlast_i  = 'x;
+        end else begin
+          wait (axi_s1_tready_o);
+          @(posedge clk);
+          axi_s1_tvalid_i = 0;
+          axi_s1_tlast_i  = 'x;
+        end
       end
     end
   endtask
 
   always @(posedge clk) begin
     cycle <= cycle + 1;
-    if (axi_m0_tvalid_o && axi_m0_tready_i && expected_head != expected_tail) begin
+    if (axi_m0_tvalid_o && axi_m0_tready_i) begin
       pop_and_check_output();
     end
   end
@@ -138,16 +188,16 @@ module axi4_switch_custom_tb();
     if (!rst_n) disable port0_driver;
     else begin : port0_driver
       case (cycle)
-        30: send_beat(0, 32'hA0010001, 32'hB0010001, 1);
-        40: send_beat(0, 32'hA0030001, 32'hB0030001, 1);
-        50: send_beat(0, 32'hA0040001, 32'hB0040001, 1);
-        80: send_beat(0, 32'hA0060001, 32'hB0060001, 1);
-        100: begin send_beat(0, 32'hA0080001, 32'hB0080001, 0); send_beat(0, 32'hA0080002, 32'hB0080002, 1); end
-        120: begin send_beat(0, 32'hA0A00001, 32'hB0A00001, 0); send_beat(0, 32'hA0A00002, 32'hB0A00002, 1); end
-        140: begin send_beat(0, 32'hA0A00002, 32'hA0A00002, 0); send_beat(0, 32'hA0A00002, 32'hA0A00002, 1); end
-        150: begin send_beat(0, 32'hA0A00003, 32'hA0A00003, 0); send_beat(0, 32'hA0A00003, 32'hA0A00003, 1); send_beat(0, 32'hA0A00004, 32'hA0A00004, 0); send_beat(0, 32'hA0A00004, 32'hA0A00004, 1); end
-        160: send_beat(0, 32'hA0A00005, 32'hA0A00005, 0);
-        170: send_beat(0, 32'hA0A00006, 32'hA0A00006, 1);
+        30: send_beat(0, 1);
+        40: send_beat(0, 1);
+        50: send_beat(0, 1);
+        80: send_beat(0, 1);
+        100: begin send_beat(0, 0); send_beat(0, 1); end
+        120: begin send_beat(0, 0); send_beat(0, 1); end
+        140: begin send_beat(0, 0); send_beat(0, 1); end
+        150: begin send_beat(0, 0); send_beat(0, 1); send_beat(0, 0); send_beat(0, 1); end
+        160: send_beat(0, 0);
+        170: send_beat(0, 1);
       endcase
     end
   end
@@ -157,24 +207,23 @@ module axi4_switch_custom_tb();
     if (!rst_n) disable port1_driver;
     else begin : port1_driver
       case (cycle)
-        35: send_beat(1, 32'hA0020001, 32'hB0020001, 1);
-        70: begin send_beat(1, 32'hA0050001, 32'hB0050001, 0); send_beat(1, 32'hA0050002, 32'hB0050002, 0); send_beat(1, 32'hA0050003, 32'hB0050003, 1); end
-        90: begin send_beat(1, 32'hA0070001, 32'hB0070001, 0); send_beat(1, 32'hA0070002, 32'hB0070002, 1); end
-        110: send_beat(1, 32'hA0090001, 32'hB0090001, 1);
-        130: begin send_beat(1, 32'hA0B00001, 32'hB0B00001, 0); send_beat(1, 32'hA0B00002, 32'hB0B00002, 1); end
-        140: begin send_beat(1, 32'hB0A00002, 32'hB0A00002, 0); send_beat(1, 32'hB0A00002, 32'hB0A00002, 1); end
-        150: begin send_beat(1, 32'hB0A00003, 32'hB0A00003, 0); send_beat(1, 32'hB0A00003, 32'hB0A00003, 1);send_beat (1, 32'hB0A00004, 32'hB0A00004, 0); send_beat(1, 32'hB0A00004, 32'hB0A00004, 1);end
-        165: send_beat(1, 32'hB0A00005, 32'hB0A00005, 1);
-        
+        35: send_beat(1, 1);
+        70: begin send_beat(1, 0); send_beat(1, 0); send_beat(1, 1); end
+        90: begin send_beat(1, 0); send_beat(1, 1); end
+        110: send_beat(1, 1);
+        130: begin send_beat(1, 0); send_beat(1, 1); end
+        140: begin send_beat(1, 0); send_beat(1, 1); end
+        150: begin send_beat(1, 0); send_beat(1, 1); send_beat(1, 0); send_beat(1, 1); end
+        165: send_beat(1, 1);
       endcase
     end
   end
 
   initial begin
     repeat (180) @(posedge clk);
-    finished <= '1;
-    if (expected_head != expected_tail) begin
-        error <= '1;
+    if ((expected_head_0 != expected_tail_0) || (expected_head_1 != expected_tail_1)) begin
+        $display("ERROR: Expected queue not empty. Port0: %0d remaining, Port1: %0d remaining",
+                 expected_tail_0 - expected_head_0, expected_tail_1 - expected_head_1);
     end else $display("Test passed. All transactions matched expected output.");
     $stop;
   end
