@@ -104,6 +104,7 @@ module axi4_switch_custom_tb();
         wait (axi_s0_tready_o);
         @(posedge clk);
         axi_s0_tvalid_i = 0;
+        axi_s0_tlast_i  = 'x;
       end else begin
         axi_s1_tdata_i  = data;
         axi_s1_tuser_i  = user;
@@ -113,6 +114,7 @@ module axi4_switch_custom_tb();
         wait (axi_s1_tready_o);
         @(posedge clk);
         axi_s1_tvalid_i = 0;
+        axi_s1_tlast_i  = 'x;
       end
     end
   endtask
@@ -143,6 +145,9 @@ module axi4_switch_custom_tb();
         100: begin send_beat(0, 32'hA0080001, 32'hB0080001, 0); send_beat(0, 32'hA0080002, 32'hB0080002, 1); end
         120: begin send_beat(0, 32'hA0A00001, 32'hB0A00001, 0); send_beat(0, 32'hA0A00002, 32'hB0A00002, 1); end
         140: begin send_beat(0, 32'hA0A00002, 32'hA0A00002, 0); send_beat(0, 32'hA0A00002, 32'hA0A00002, 1); end
+        150: begin send_beat(0, 32'hA0A00003, 32'hA0A00003, 0); send_beat(0, 32'hA0A00003, 32'hA0A00003, 1); send_beat(0, 32'hA0A00004, 32'hA0A00004, 0); send_beat(0, 32'hA0A00004, 32'hA0A00004, 1); end
+        160: send_beat(0, 32'hA0A00005, 32'hA0A00005, 0);
+        170: send_beat(0, 32'hA0A00006, 32'hA0A00006, 1);
       endcase
     end
   end
@@ -158,12 +163,15 @@ module axi4_switch_custom_tb();
         110: send_beat(1, 32'hA0090001, 32'hB0090001, 1);
         130: begin send_beat(1, 32'hA0B00001, 32'hB0B00001, 0); send_beat(1, 32'hA0B00002, 32'hB0B00002, 1); end
         140: begin send_beat(1, 32'hB0A00002, 32'hB0A00002, 0); send_beat(1, 32'hB0A00002, 32'hB0A00002, 1); end
+        150: begin send_beat(1, 32'hB0A00003, 32'hB0A00003, 0); send_beat(1, 32'hB0A00003, 32'hB0A00003, 1);send_beat (1, 32'hB0A00004, 32'hB0A00004, 0); send_beat(1, 32'hB0A00004, 32'hB0A00004, 1);end
+        165: send_beat(1, 32'hB0A00005, 32'hB0A00005, 1);
+        
       endcase
     end
   end
 
   initial begin
-    repeat (160) @(posedge clk);
+    repeat (180) @(posedge clk);
     finished <= '1;
     if (expected_head != expected_tail) begin
         error <= '1;
