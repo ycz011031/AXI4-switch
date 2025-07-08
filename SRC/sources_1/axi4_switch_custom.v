@@ -140,11 +140,11 @@ always @(posedge clk) begin
          case(cur_state)
             2'b00 : begin
                 if      (port_valid == 2'b01) begin
-                    if (port_last == 2'b00) cur_state <= 2'b01;
+                    if (port_last[0] != 1'b1) cur_state <= 2'b01;
                     else port_order <= 2'b10;
                 end
-                else if (port_valid == 2'b10 ) begin;
-                    if (port_last == 2'b00) cur_state <= 2'b10;
+                else if (port_valid == 2'b10 ) begin
+                    if (port_last[1] != 1'b1) cur_state <= 2'b10;
                     else port_order <= 2'b01;
                 end
                 else if (port_valid == 2'b11) begin

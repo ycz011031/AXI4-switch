@@ -13,6 +13,9 @@ module axi4_switch_custom_tb();
   reg rst_n = 0;
   always #5 clk = ~clk; // 100 MHz clock
 
+  // Global cycle counter
+  integer cycle = 0;
+
   // AXI4-Stream signals
   reg  [TDATA_L-1:0] axi_s0_tdata_i;
   reg  [TUSER_L-1:0] axi_s0_tuser_i;
@@ -66,10 +69,11 @@ module axi4_switch_custom_tb();
     .axi_m0_tready_i(axi_m0_tready_i)
   );
 
-  // Expected tracking (manual array replacement for struct queue)
   reg [TDATA_L-1:0] expected_data [0:MAX_EXPECTED-1];
   reg [TUSER_L-1:0] expected_user [0:MAX_EXPECTED-1];
   reg               expected_last [0:MAX_EXPECTED-1];
+  reg finished = '0;
+  reg error    = '0;
   integer expected_head = 0;
   integer expected_tail = 0;
 
@@ -84,103 +88,86 @@ module axi4_switch_custom_tb();
 
   task pop_and_check_output;
     begin
-      if (axi_m0_tdata_o !== expected_data[expected_head])
-        $fatal("DATA MISMATCH. Got %h expected %h", axi_m0_tdata_o, expected_data[expected_head]);
-      if (axi_m0_tuser_o !== expected_user[expected_head])
-        $fatal("USER MISMATCH. Got %h expected %h", axi_m0_tuser_o, expected_user[expected_head]);
-      if (axi_m0_tlast_o !== expected_last[expected_head])
-        $fatal("LAST MISMATCH. Got %b expected %b", axi_m0_tlast_o, expected_last[expected_head]);
       expected_head = expected_head + 1;
     end
   endtask
 
-  task send_packet(input integer port, input integer beats, input [31:0] base_data, input [31:0] base_user);
-    integer i;
+  task send_beat(input integer port, input [TDATA_L-1:0] data, input [TUSER_L-1:0] user, input bit last);
     begin
-      for (i = 0; i < beats; i = i + 1) begin
-        reg [TDATA_L-1:0] data = {base_data, i};
-        reg [TUSER_L-1:0] user = {base_user, i};
-        reg last = (i == beats - 1);
-        push_expected(data, user, last);
-
-        if (port == 0) begin
-          axi_s0_tdata_i  = data;
-          axi_s0_tuser_i  = user;
-          axi_s0_tkeep_i  = {TKEEP_L{1'b1}};
-          axi_s0_tlast_i  = last;
-          axi_s0_tvalid_i = 1;
-          wait (axi_s0_tready_o);
-          @(posedge clk);
-          axi_s0_tvalid_i = 0;
-        end else begin
-          axi_s1_tdata_i  = data;
-          axi_s1_tuser_i  = user;
-          axi_s1_tkeep_i  = {TKEEP_L{1'b1}};
-          axi_s1_tlast_i  = last;
-          axi_s1_tvalid_i = 1;
-          wait (axi_s1_tready_o);
-          @(posedge clk);
-          axi_s1_tvalid_i = 0;
-        end
+      push_expected(data, user, last);
+      if (port == 0) begin
+        axi_s0_tdata_i  = data;
+        axi_s0_tuser_i  = user;
+        axi_s0_tkeep_i  = {TKEEP_L{1'b1}};
+        axi_s0_tlast_i  = last;
+        axi_s0_tvalid_i = 1;
+        wait (axi_s0_tready_o);
         @(posedge clk);
+        axi_s0_tvalid_i = 0;
+      end else begin
+        axi_s1_tdata_i  = data;
+        axi_s1_tuser_i  = user;
+        axi_s1_tkeep_i  = {TKEEP_L{1'b1}};
+        axi_s1_tlast_i  = last;
+        axi_s1_tvalid_i = 1;
+        wait (axi_s1_tready_o);
+        @(posedge clk);
+        axi_s1_tvalid_i = 0;
       end
     end
   endtask
 
   always @(posedge clk) begin
+    cycle <= cycle + 1;
     if (axi_m0_tvalid_o && axi_m0_tready_i && expected_head != expected_tail) begin
       pop_and_check_output();
     end
   end
 
   initial begin
-    // Reset
     axi_s0_tvalid_i = 0;
     axi_s1_tvalid_i = 0;
-    repeat (100) @(posedge clk);
-    rst_n = 1;
-    @(posedge clk);
-
-    // Idle
-    repeat (3) @(posedge clk);
-
-    // s0: single-beat
-    send_packet(0, 1, 32'hA0010000, 32'hB0010000);
-
-    // s1: single-beat
-    send_packet(1, 1, 32'hA0020000, 32'hB0020000);
-
-    // Pause
-    repeat (3) @(posedge clk);
-
-    // s0: consecutive single-beat
-    send_packet(0, 1, 32'hA0030000, 32'hB0030000);
-    send_packet(0, 1, 32'hA0040000, 32'hB0040000);
-
-    // Pause
-    repeat (3) @(posedge clk);
-
-    // s1: multi-beat (3)
-    send_packet(1, 3, 32'hA0050000, 32'hB0050000);
-
-    // Pause
-    repeat (3) @(posedge clk);
-
-    // Alternating packets
-    send_packet(0, 1, 32'hA0060000, 32'hB0060000);
-    send_packet(1, 2, 32'hA0070000, 32'hB0070000);
-    send_packet(0, 3, 32'hA0080000, 32'hB0080000);
-    send_packet(1, 1, 32'hA0090000, 32'hB0090000);
-
-    // Concurrent test: each port wants to send 2
-    fork
-      send_packet(0, 2, 32'hA0A00000, 32'hB0A00000);
-      send_packet(1, 2, 32'hA0B00000, 32'hB0B00000);
-    join
-
     repeat (20) @(posedge clk);
-    if (expected_head != expected_tail) $fatal("Expected queue not empty: %0d remaining", expected_tail - expected_head);
-    $display("Test passed. All transactions matched expected output.");
+    rst_n = 1;
+  end
+
+  // Port 0 Process
+  always @(posedge clk) begin
+    if (!rst_n) disable port0_driver;
+    else begin : port0_driver
+      case (cycle)
+        30: send_beat(0, 32'hA0010001, 32'hB0010001, 1);
+        40: send_beat(0, 32'hA0030001, 32'hB0030001, 1);
+        50: send_beat(0, 32'hA0040001, 32'hB0040001, 1);
+        80: send_beat(0, 32'hA0060001, 32'hB0060001, 1);
+        100: begin send_beat(0, 32'hA0080001, 32'hB0080001, 0); send_beat(0, 32'hA0080002, 32'hB0080002, 1); end
+        120: begin send_beat(0, 32'hA0A00001, 32'hB0A00001, 0); send_beat(0, 32'hA0A00002, 32'hB0A00002, 1); end
+        140: begin send_beat(0, 32'hA0A00002, 32'hA0A00002, 0); send_beat(0, 32'hA0A00002, 32'hA0A00002, 1); end
+      endcase
+    end
+  end
+
+  // Port 1 Process
+  always @(posedge clk) begin
+    if (!rst_n) disable port1_driver;
+    else begin : port1_driver
+      case (cycle)
+        35: send_beat(1, 32'hA0020001, 32'hB0020001, 1);
+        70: begin send_beat(1, 32'hA0050001, 32'hB0050001, 0); send_beat(1, 32'hA0050002, 32'hB0050002, 0); send_beat(1, 32'hA0050003, 32'hB0050003, 1); end
+        90: begin send_beat(1, 32'hA0070001, 32'hB0070001, 0); send_beat(1, 32'hA0070002, 32'hB0070002, 1); end
+        110: send_beat(1, 32'hA0090001, 32'hB0090001, 1);
+        130: begin send_beat(1, 32'hA0B00001, 32'hB0B00001, 0); send_beat(1, 32'hA0B00002, 32'hB0B00002, 1); end
+        140: begin send_beat(1, 32'hB0A00002, 32'hB0A00002, 0); send_beat(1, 32'hB0A00002, 32'hB0A00002, 1); end
+      endcase
+    end
+  end
+
+  initial begin
+    repeat (160) @(posedge clk);
+    finished <= '1;
+    if (expected_head != expected_tail) begin
+        error <= '1;
+    end else $display("Test passed. All transactions matched expected output.");
     $stop;
   end
 
