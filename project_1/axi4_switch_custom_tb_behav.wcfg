@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wave_config>
+   <wave_state>
+   </wave_state>
+   <db_ref_list>
+      <db_ref path="axi4_switch_custom_tb_behav.wdb" id="1">
+         <top_modules>
+            <top_module name="axi4_switch_custom_tb" />
+            <top_module name="glbl" />
+         </top_modules>
+      </db_ref>
+   </db_ref_list>
+   <zoom_setting>
+      <ZoomStartTime time="0.000 ns"></ZoomStartTime>
+      <ZoomEndTime time="360.001 ns"></ZoomEndTime>
+      <Cursor1Time time="705.000 ns"></Cursor1Time>
+   </zoom_setting>
+   <column_width_setting>
+      <NameColumnWidth column_width="425"></NameColumnWidth>
+      <ValueColumnWidth column_width="283"></ValueColumnWidth>
+   </column_width_setting>
+   <WVObjectSize size="26" />
+   <wvobject fp_name="/axi4_switch_custom_tb/clk" type="logic">
+      <obj_property name="ElementShortName">clk</obj_property>
+      <obj_property name="ObjectShortName">clk</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/rst_n" type="logic">
+      <obj_property name="ElementShortName">rst_n</obj_property>
+      <obj_property name="ObjectShortName">rst_n</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/cycle" type="array">
+      <obj_property name="ElementShortName">cycle[31:0]</obj_property>
+      <obj_property name="ObjectShortName">cycle[31:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/axi_s0_tdata_i" type="array">
+      <obj_property name="ElementShortName">axi_s0_tdata_i[511:0]</obj_property>
+      <obj_property name="ObjectShortName">axi_s0_tdata_i[511:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/axi_s0_tlast_i" type="logic">
+      <obj_property name="ElementShortName">axi_s0_tlast_i</obj_property>
+      <obj_property name="ObjectShortName">axi_s0_tlast_i</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/axi_s0_tvalid_i" type="logic">
+      <obj_property name="ElementShortName">axi_s0_tvalid_i</obj_property>
+      <obj_property name="ObjectShortName">axi_s0_tvalid_i</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/axi_s0_tready_o" type="logic">
+      <obj_property name="ElementShortName">axi_s0_tready_o</obj_property>
+      <obj_property name="ObjectShortName">axi_s0_tready_o</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/axi_s1_tdata_i" type="array">
+      <obj_property name="ElementShortName">axi_s1_tdata_i[511:0]</obj_property>
+      <obj_property name="ObjectShortName">axi_s1_tdata_i[511:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/axi_s1_tlast_i" type="logic">
+      <obj_property name="ElementShortName">axi_s1_tlast_i</obj_property>
+      <obj_property name="ObjectShortName">axi_s1_tlast_i</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/axi_s1_tvalid_i" type="logic">
+      <obj_property name="ElementShortName">axi_s1_tvalid_i</obj_property>
+      <obj_property name="ObjectShortName">axi_s1_tvalid_i</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/axi_s1_tready_o" type="logic">
+      <obj_property name="ElementShortName">axi_s1_tready_o</obj_property>
+      <obj_property name="ObjectShortName">axi_s1_tready_o</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/axi_m0_tdata_o" type="array">
+      <obj_property name="ElementShortName">axi_m0_tdata_o[511:0]</obj_property>
+      <obj_property name="ObjectShortName">axi_m0_tdata_o[511:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/axi_m0_tlast_o" type="logic">
+      <obj_property name="ElementShortName">axi_m0_tlast_o</obj_property>
+      <obj_property name="ObjectShortName">axi_m0_tlast_o</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/axi_m0_tvalid_o" type="logic">
+      <obj_property name="ElementShortName">axi_m0_tvalid_o</obj_property>
+      <obj_property name="ObjectShortName">axi_m0_tvalid_o</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/axi_m0_tready_i" type="logic">
+      <obj_property name="ElementShortName">axi_m0_tready_i</obj_property>
+      <obj_property name="ObjectShortName">axi_m0_tready_i</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/s_req_supress" type="array">
+      <obj_property name="ElementShortName">s_req_supress[1:0]</obj_property>
+      <obj_property name="ObjectShortName">s_req_supress[1:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/expected_data" type="array">
+      <obj_property name="ElementShortName">expected_data[0:127][511:0]</obj_property>
+      <obj_property name="ObjectShortName">expected_data[0:127][511:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/expected_user" type="array">
+      <obj_property name="ElementShortName">expected_user[0:127][80:0]</obj_property>
+      <obj_property name="ObjectShortName">expected_user[0:127][80:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/expected_last" type="array">
+      <obj_property name="ElementShortName">expected_last[0:127]</obj_property>
+      <obj_property name="ObjectShortName">expected_last[0:127]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/expected_head" type="array">
+      <obj_property name="ElementShortName">expected_head[31:0]</obj_property>
+      <obj_property name="ObjectShortName">expected_head[31:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/expected_tail" type="array">
+      <obj_property name="ElementShortName">expected_tail[31:0]</obj_property>
+      <obj_property name="ObjectShortName">expected_tail[31:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/finished" type="logic">
+      <obj_property name="ElementShortName">finished</obj_property>
+      <obj_property name="ObjectShortName">finished</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/error" type="logic">
+      <obj_property name="ElementShortName">error</obj_property>
+      <obj_property name="ObjectShortName">error</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/dut/cur_state" type="array">
+      <obj_property name="ElementShortName">cur_state[1:0]</obj_property>
+      <obj_property name="ObjectShortName">cur_state[1:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/dut/port_valid" type="array">
+      <obj_property name="ElementShortName">port_valid[1:0]</obj_property>
+      <obj_property name="ObjectShortName">port_valid[1:0]</obj_property>
+   </wvobject>
+   <wvobject fp_name="/axi4_switch_custom_tb/dut/port_last" type="array">
+      <obj_property name="ElementShortName">port_last[1:0]</obj_property>
+      <obj_property name="ObjectShortName">port_last[1:0]</obj_property>
+   </wvobject>
+</wave_config>
