@@ -39,9 +39,9 @@ vlog -work xlconstant_v1_1_7  -v2k5 "+incdir+../../../../project_1.gen/sources_1
 
 vlog -work xil_defaultlib  -v2k5 "+incdir+../../../../project_1.gen/sources_1/bd/axi4_switch_buffered/ipshared/8713/hdl" \
 "../../../bd/axi4_switch_buffered/ip/axi4_switch_buffered_xlconstant_0_0/sim/axi4_switch_buffered_xlconstant_0_0.v" \
-"../../../bd/axi4_switch_buffered/sim/axi4_switch_buffered.v" \
 "../../../bd/axi4_switch_buffered/ip/axi4_switch_buffered_tkeep_byte_to_dword_0_0/sim/axi4_switch_buffered_tkeep_byte_to_dword_0_0.v" \
 "../../../bd/axi4_switch_buffered/ip/axi4_switch_buffered_tkeep_byte_to_dword_1_0/sim/axi4_switch_buffered_tkeep_byte_to_dword_1_0.v" \
+"../../../bd/axi4_switch_buffered/sim/axi4_switch_buffered.v" \
 
 vlog -work xil_defaultlib \
 "glbl.v"

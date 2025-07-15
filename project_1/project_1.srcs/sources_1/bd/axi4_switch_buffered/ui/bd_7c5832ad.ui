@@ -1,36 +1,36 @@
 {
    "ActiveEmotionalView":"Default View",
    "Default View_ScaleFactor":"1.5",
-   "Default View_TopLeft":"-565,0",
+   "Default View_TopLeft":"-571,-10",
    "ExpandedHierarchyInLayout":"",
    "PinnedBlocks":"",
    "guistr":"# # String gsaved with Nlview 7.0r6  2020-01-29 bk=1.5227 VDI=41 GEI=36 GUI=JA:10.0 non-TLS
 #  -string -flagsOSRD
-preplace port axi_m0_o_0 -pg 1 -lvl 3 -x 740 -y 350 -defaultsOSRD
-preplace port S_AXIS_0 -pg 1 -lvl 0 -x -10 -y 210 -defaultsOSRD
-preplace port S_AXIS_1 -pg 1 -lvl 0 -x -10 -y 420 -defaultsOSRD
-preplace port port-id_s_axis_aclk_0 -pg 1 -lvl 0 -x -10 -y 240 -defaultsOSRD
-preplace port port-id_s_axis_aresetn_0 -pg 1 -lvl 0 -x -10 -y 270 -defaultsOSRD
-preplace inst axi4_switch_custom_0 -pg 1 -lvl 2 -x 560 -y 350 -defaultsOSRD
-preplace inst axis_data_fifo_0 -pg 1 -lvl 1 -x 200 -y 230 -defaultsOSRD
-preplace inst axis_data_fifo_1 -pg 1 -lvl 1 -x 200 -y 440 -defaultsOSRD
-preplace inst xlconstant_0 -pg 1 -lvl 1 -x 200 -y 750 -defaultsOSRD
-preplace inst tkeep_byte_to_dword_0 -pg 1 -lvl 1 -x 200 -y 60 -defaultsOSRD
-preplace inst tkeep_byte_to_dword_1 -pg 1 -lvl 1 -x 200 -y 620 -defaultsOSRD
-preplace netloc xlconstant_0_dout 1 1 1 400J 410n
-preplace netloc s_axis_aclk_0_1 1 0 2 10 360 360J
-preplace netloc s_axis_aresetn_0_1 1 0 2 20 350 370J
-preplace netloc axis_data_fifo_0_m_axis_tkeep 1 0 2 20 120 360
-preplace netloc tkeep_byte_to_dword_0_tkeep_dword 1 1 1 390J 60n
-preplace netloc axis_data_fifo_1_m_axis_tkeep 1 0 2 10 520 370
-preplace netloc tkeep_byte_to_dword_1_tkeep_dword 1 1 1 390J 350n
-preplace netloc axis_data_fifo_0_M_AXIS 1 1 1 380 220n
-preplace netloc axis_data_fifo_1_M_AXIS 1 1 1 380 330n
-preplace netloc axi4_switch_custom_0_axi_m0_o 1 2 1 N 350
-preplace netloc S_AXIS_0_1 1 0 1 N 210
-preplace netloc S_AXIS_1_1 1 0 1 N 420
-levelinfo -pg 1 -10 200 560 740
-pagesize -pg 1 -db -bbox -sgen -160 0 860 810
+preplace port axi_m0_o_0 -pg 1 -lvl 4 -x 1050 -y 350 -defaultsOSRD
+preplace port S_AXIS_0 -pg 1 -lvl 0 -x -300 -y 210 -defaultsOSRD
+preplace port S_AXIS_1 -pg 1 -lvl 0 -x -300 -y 420 -defaultsOSRD
+preplace port port-id_s_axis_aclk_0 -pg 1 -lvl 0 -x -300 -y 240 -defaultsOSRD
+preplace port port-id_s_axis_aresetn_0 -pg 1 -lvl 0 -x -300 -y 270 -defaultsOSRD
+preplace inst axi4_switch_custom_0 -pg 1 -lvl 3 -x 870 -y 350 -defaultsOSRD
+preplace inst axis_data_fifo_0 -pg 1 -lvl 2 -x 510 -y 230 -defaultsOSRD
+preplace inst axis_data_fifo_1 -pg 1 -lvl 2 -x 510 -y 440 -defaultsOSRD
+preplace inst xlconstant_0 -pg 1 -lvl 2 -x 510 -y 750 -defaultsOSRD
+preplace inst tkeep_byte_to_dword_0 -pg 1 -lvl 2 -x 510 -y 60 -defaultsOSRD
+preplace inst tkeep_byte_to_dword_1 -pg 1 -lvl 2 -x 510 -y 620 -defaultsOSRD
+preplace netloc axis_data_fifo_0_m_axis_tkeep 1 1 2 -80 0 680
+preplace netloc axis_data_fifo_1_m_axis_tkeep 1 1 2 -90 520 680
+preplace netloc s_axis_aclk_0_1 1 0 3 N 240 -90 350 690J
+preplace netloc s_axis_aresetn_0_1 1 0 3 N 270 -80 360 670J
+preplace netloc tkeep_byte_to_dword_0_tkeep_dword 1 2 1 700J 60n
+preplace netloc tkeep_byte_to_dword_1_tkeep_dword 1 2 1 700J 350n
+preplace netloc xlconstant_0_dout 1 2 1 710J 410n
+preplace netloc S_AXIS_0_1 1 0 2 N 210 N
+preplace netloc S_AXIS_1_1 1 0 2 N 420 N
+preplace netloc axi4_switch_custom_0_axi_m0_o 1 3 1 N 350
+preplace netloc axis_data_fifo_0_M_AXIS 1 2 1 690 220n
+preplace netloc axis_data_fifo_1_M_AXIS 1 2 1 680 330n
+levelinfo -pg 1 -300 -110 510 870 1050
+pagesize -pg 1 -db -bbox -sgen -450 -20 1170 810
 "
 }
 {

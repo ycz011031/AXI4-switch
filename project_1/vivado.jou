@@ -1,0 +1,20 @@
+#-----------------------------------------------------------
+# Vivado v2021.2 (64-bit)
+# SW Build 3367213 on Tue Oct 19 02:48:09 MDT 2021
+# IP Build 3369179 on Thu Oct 21 08:25:16 MDT 2021
+# Start of session at: Tue Jul  8 12:57:43 2025
+# Process ID: 48964
+# Current directory: C:/Users/12109/OneDrive/Desktop/NSK/test/AXI4-switch/project_1
+# Command line: vivado.exe -gui_launcher_event rodinguilauncherevent59812 C:\Users\12109\OneDrive\Desktop\NSK\test\AXI4-switch\project_1\project_1.xpr
+# Log file: C:/Users/12109/OneDrive/Desktop/NSK/test/AXI4-switch/project_1/vivado.log
+# Journal file: C:/Users/12109/OneDrive/Desktop/NSK/test/AXI4-switch/project_1\vivado.jou
+# Running On: Asus_Zephyrus, OS: Windows, CPU Frequency: 2918 MHz, CPU Physical cores: 10, Host memory: 33960 MB
+#-----------------------------------------------------------
+start_gui
+open_project C:/Users/12109/OneDrive/Desktop/NSK/test/AXI4-switch/project_1/project_1.xpr
+update_compile_order -fileset sources_1
+open_bd_design {C:/Users/12109/OneDrive/Desktop/NSK/test/AXI4-switch/project_1/project_1.srcs/sources_1/bd/axi4_switch_buffered/axi4_switch_buffered.bd}
+create_bd_cell -type module -reference tkeep_convertor tkeep_convertor_0
+set_property location {0.5 -107 122} [get_bd_cells tkeep_convertor_0]
+delete_bd_objs [get_bd_cells tkeep_convertor_0]
+save_bd_design

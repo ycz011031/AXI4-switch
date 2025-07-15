@@ -3,9 +3,9 @@ verilog xil_defaultlib --include "../../../../project_1.gen/sources_1/bd/axi4_sw
 "../../../bd/axi4_switch_buffered/ip/axi4_switch_buffered_axis_data_fifo_0_1/sim/axi4_switch_buffered_axis_data_fifo_0_1.v" \
 "../../../bd/axi4_switch_buffered/ip/axi4_switch_buffered_axis_data_fifo_0_2/sim/axi4_switch_buffered_axis_data_fifo_0_2.v" \
 "../../../bd/axi4_switch_buffered/ip/axi4_switch_buffered_xlconstant_0_0/sim/axi4_switch_buffered_xlconstant_0_0.v" \
-"../../../bd/axi4_switch_buffered/sim/axi4_switch_buffered.v" \
 "../../../bd/axi4_switch_buffered/ip/axi4_switch_buffered_tkeep_byte_to_dword_0_0/sim/axi4_switch_buffered_tkeep_byte_to_dword_0_0.v" \
 "../../../bd/axi4_switch_buffered/ip/axi4_switch_buffered_tkeep_byte_to_dword_1_0/sim/axi4_switch_buffered_tkeep_byte_to_dword_1_0.v" \
+"../../../bd/axi4_switch_buffered/sim/axi4_switch_buffered.v" \
 
 verilog xil_defaultlib "glbl.v"
 

@@ -24,9 +24,9 @@
 -endlib
 -makelib xcelium_lib/xil_defaultlib \
   "../../../bd/axi4_switch_buffered/ip/axi4_switch_buffered_xlconstant_0_0/sim/axi4_switch_buffered_xlconstant_0_0.v" \
-  "../../../bd/axi4_switch_buffered/sim/axi4_switch_buffered.v" \
   "../../../bd/axi4_switch_buffered/ip/axi4_switch_buffered_tkeep_byte_to_dword_0_0/sim/axi4_switch_buffered_tkeep_byte_to_dword_0_0.v" \
   "../../../bd/axi4_switch_buffered/ip/axi4_switch_buffered_tkeep_byte_to_dword_1_0/sim/axi4_switch_buffered_tkeep_byte_to_dword_1_0.v" \
+  "../../../bd/axi4_switch_buffered/sim/axi4_switch_buffered.v" \
 -endlib
 -makelib xcelium_lib/xil_defaultlib \
   glbl.v
