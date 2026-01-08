@@ -145,22 +145,22 @@ task send_beat(
     input tlast
 );
     begin
-        is_sop = sop;
-        is_eop = eop;
-        is_sop0_ptr = sop0_ptr_val;
-        is_sop1_ptr = sop1_ptr_val;
-        is_eop0_ptr = eop0_ptr_val;
-        is_eop1_ptr = eop1_ptr_val;
-        discontinue = disc;
-        byte_lane1 = lane1_data;
-        byte_lane2 = lane2_data;
-        S_AXIS_TLAST = tlast;
-        S_AXIS_TVALID = 1;
+        is_sop <= sop;
+        is_eop <= eop;
+        is_sop0_ptr <= sop0_ptr_val;
+        is_sop1_ptr <= sop1_ptr_val;
+        is_eop0_ptr <= eop0_ptr_val;
+        is_eop1_ptr <= eop1_ptr_val;
+        discontinue <= disc;
+        byte_lane1 <= lane1_data;
+        byte_lane2 <= lane2_data;
+        S_AXIS_TLAST <= tlast;
+        S_AXIS_TVALID <= 1;
         
         tick();
         while (!S_AXIS_TREADY) tick();
         
-        S_AXIS_TVALID = 0;
+        S_AXIS_TVALID <= 0;
     end
 endtask
 

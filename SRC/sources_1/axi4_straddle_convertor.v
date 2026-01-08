@@ -1,7 +1,7 @@
 module axi4_straddle_convertor #
 (
     parameter integer AXI_TUSER_L        = 161,
-    parameter integer BUFFER_SIZE        = 1024
+    parameter integer BUFFER_SIZE        = 3
 )
 (
     // Global Signals
@@ -57,6 +57,9 @@ reg reading_from_buffer0;  // Tracks which buffer we're currently reading from
 // [3:2] - byte lanes for TLP1 (bit 2 = lane 00, bit 3 = lane 10)
 reg [3:0] byte_lane_tracker;
 reg [3:0] byte_lane_tracker_next;
+
+// Delayed EOP signals for one-cycle delay in processing
+reg [3:0] is_eop_delayed;
 
 // Masked TKEEP signals for EOP handling
 reg [15:0] keep0_masked;
@@ -152,19 +155,20 @@ always @(*) begin
                 byte_lane_tracker_next = {byte_lane_tracker[1:0], 2'b10};
             end
         end
-        
-        // Handle EOP (end of packet) - right shift and zero pad
-        if (is_eop[1] && is_eop[0]) begin
-            // Both ending: right shift by 2, zero pad upper bits
-            tlp_active_next = {2'b00, tlp_active_next[1:0]};
-            // Right shift byte lane tracker by 4 bits
-            byte_lane_tracker_next = {4'b0000, byte_lane_tracker_next[3:2]};
-        end else if (is_eop[0]) begin
-            // Only first lane ending: right shift by 1, zero pad
-            tlp_active_next = {1'b0, tlp_active_next[1]};
-            // Right shift byte lane tracker by 2 bits
-            byte_lane_tracker_next = {2'b00, byte_lane_tracker_next[3:2]};
-        end
+    end
+    
+    // Handle EOP (end of packet) - right shift and zero pad
+    // Use delayed EOP to process one cycle after EOP arrives
+    if (is_eop_delayed[1] && is_eop_delayed[0]) begin
+        // Both ending: right shift by 2, zero pad upper bits
+        tlp_active_next = {2'b00, tlp_active_next[1:0]};
+        // Right shift byte lane tracker by 4 bits
+        byte_lane_tracker_next = {4'b0000, byte_lane_tracker_next[3:2]};
+    end else if (is_eop_delayed[0]) begin
+        // Only first lane ending: right shift by 1, zero pad
+        tlp_active_next = {1'b0, tlp_active_next[1]};
+        // Right shift byte lane tracker by 2 bits
+        byte_lane_tracker_next = {2'b00, byte_lane_tracker_next[3:2]};
     end
 end
 
@@ -178,6 +182,7 @@ always @(posedge ACLK) begin
         
         tlp_active <= 2'b00;
         byte_lane_tracker <= 4'b0000;
+        is_eop_delayed <= 4'b0000;
         buffer0_full <= 0;
         buffer0_empty <= 1;
         buffer1_full <= 0;
@@ -190,6 +195,8 @@ always @(posedge ACLK) begin
         error_invalid_state <= 0;
 
     end else begin
+        is_eop_delayed <= (S_AXIS_TVALID)? is_eop : 4'b1111;
+        
         // Update TLP active state and byte lane tracker
         tlp_active <= tlp_active_next;
         byte_lane_tracker <= byte_lane_tracker_next;
