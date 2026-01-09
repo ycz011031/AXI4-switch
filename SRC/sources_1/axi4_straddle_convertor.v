@@ -41,6 +41,11 @@ reg [15:0]  keep1_reg [0:BUFFER_SIZE-1];
 reg [$clog2(BUFFER_SIZE)-1:0] write_ptr0, read_ptr0;
 reg [$clog2(BUFFER_SIZE)-1:0] write_ptr1, read_ptr1;
 
+// Track which byte lanes are valid at current write position
+// [0] = lane 00 valid, [1] = lane 10 valid
+reg [1:0] buffer0_lanes_valid;
+reg [1:0] buffer1_lanes_valid;
+
 reg illegal_sop_encountered;
 reg illegal_eop_encountered;
 
@@ -91,6 +96,22 @@ assign discontinue = (AXI_TUSER_L == 161) ? S_AXIS_TUSER[96] : 1'b0;
 
 assign S_AXIS_TREADY = !buffer0_full && !buffer1_full;
 
+// Calculate next write pointer if current position gets filled
+wire [$clog2(BUFFER_SIZE)-1:0] next_write_ptr0 = (write_ptr0 == BUFFER_SIZE - 1) ? 0 : write_ptr0 + 1;
+wire [$clog2(BUFFER_SIZE)-1:0] next_write_ptr1 = (write_ptr1 == BUFFER_SIZE - 1) ? 0 : write_ptr1 + 1;
+wire [$clog2(BUFFER_SIZE)-1:0] next_next_write_ptr0 = (next_write_ptr0 == BUFFER_SIZE - 1) ? 0 : next_write_ptr0 + 1;
+wire [$clog2(BUFFER_SIZE)-1:0] next_next_write_ptr1 = (next_write_ptr1 == BUFFER_SIZE - 1) ? 0 : next_write_ptr1 + 1;
+
+// Check if buffers would be full after incrementing (almost full detection)
+wire buffer0_would_be_full = (next_write_ptr0 == read_ptr0);
+wire buffer1_would_be_full = (next_write_ptr1 == read_ptr1);
+// Check if we have room for write_ptr+1 (needed when buffer0_lane0_filled and writing to next position)
+wire buffer0_next_would_be_full = (next_next_write_ptr0 == read_ptr0);
+wire buffer1_next_would_be_full = (next_next_write_ptr1 == read_ptr1);
+
+reg buffer0_lane0_filled;
+reg buffer1_lane0_filled;
+
 // Output from buffers - alternate based on EOP markers
 wire buffer0_has_data = (write_ptr0 != read_ptr0);
 wire buffer1_has_data = (write_ptr1 != read_ptr1);
@@ -124,7 +145,7 @@ always @(*) begin
         // Apply EOP mask for TLP1 if it's ending
         if (tlp_active_current[1] && !tlp_active_next[1]) begin
             // when both TLP is ending, apply mask1 when TLP1 is old TLP 
-            keep1_masked = (is_eop[1]&&old_tlp_current) ? mask1 : mask0;
+            keep1_masked = (is_eop[1]&&old_tlp_current) ? mask0 : mask1;
         end
     end
 end
@@ -135,6 +156,7 @@ always @(*) begin
     tlp_active_current         = tlp_active;
     byte_lane_tracker_current  = byte_lane_tracker;
     byte_lane_tracker_next     = byte_lane_tracker;
+    old_tlp_current            = old_tlp;
     illegal_sop_encountered    = 1'b0;
     illegal_eop_encountered    = 1'b0;
     
@@ -211,6 +233,9 @@ always @(posedge ACLK) begin
         write_ptr1 <= 0;
         read_ptr1  <= 0;
         
+        buffer0_lanes_valid <= 2'b00;
+        buffer1_lanes_valid <= 2'b00;
+        
         tlp_active        <= 2'b00;
         byte_lane_tracker <= 4'b0000;
         is_eop_delayed    <= 4'b0000;
@@ -223,6 +248,9 @@ always @(posedge ACLK) begin
         buffer0_eop <= {BUFFER_SIZE{1'b0}};
         buffer1_eop <= {BUFFER_SIZE{1'b0}};
        
+        buffer0_lane0_filled <= 0;
+        buffer1_lane0_filled <= 0;
+
         reading_from_buffer0 <= 1;  // Start with buffer0 
         error_invalid_state  <= 2'b00;
 
@@ -245,45 +273,154 @@ always @(posedge ACLK) begin
             // Write to buffer0 if TLP0 is active
             if (tlp_active_current[0]) begin
                 // Extract correct byte lanes based on byte_lane_tracker[1:0]
-                if (byte_lane_tracker_current[1:0] == 2'b11) begin
-                    // TLP0 uses full 512 bits
-                    data0_reg[write_ptr0] <= S_AXIS_TDATA;
-                    keep0_reg[write_ptr0] <= keep0_masked;
-                end else if (byte_lane_tracker_current[1:0] == 2'b01) begin
-                    // TLP0 uses lane 00 (bits 255:0)
-                    data0_reg[write_ptr0] <= {256'b0, S_AXIS_TDATA[255:0]};
-                    keep0_reg[write_ptr0] <= {8'b0, keep0_masked[7:0]};
-                end else if (byte_lane_tracker_current[1:0] == 2'b10) begin
-                    // TLP0 uses lane 10 (bits 511:256)
-                    data0_reg[write_ptr0] <= {S_AXIS_TDATA[511:256], 256'b0};
-                    keep0_reg[write_ptr0] <= {keep0_masked[15:8], 8'b0};
+                case (byte_lane_tracker_current[1:0])
+                    2'b01: begin // Only lane 00 active
+                        if (!buffer0_lane0_filled) begin
+                            buffer0_lane0_filled <= 1;
+                            data0_reg[write_ptr0][255:0] <= S_AXIS_TDATA[255:0];
+                            keep0_reg[write_ptr0][7:0] <= keep0_masked[7:0];
+                        end else begin
+                            buffer0_lane0_filled <= 0;
+                            data0_reg[write_ptr0][511:256] <= S_AXIS_TDATA[255:0];
+                            keep0_reg[write_ptr0][15:8] <= keep0_masked[7:0];
+                        end
+                    end
+                    2'b10: begin // Only lane 10 active
+                        if (!buffer0_lane0_filled) begin
+                            buffer0_lane0_filled <= 1;
+                            data0_reg[write_ptr0][255:0] <= S_AXIS_TDATA[511:256];
+                            keep0_reg[write_ptr0][7:0] <= keep0_masked[15:8];
+                        end else begin
+                            buffer0_lane0_filled <= 0;
+                            data0_reg[write_ptr0][511:256] <= S_AXIS_TDATA[511:256];
+                            keep0_reg[write_ptr0][15:8] <= keep0_masked[15:8];
+                        end
+                    end
+                    2'b11: begin // Both lanes active
+                        if (!buffer0_lane0_filled) begin
+                            // Write lane 00 to current position, lane 10 to upper half
+                            buffer0_lane0_filled <= 0;
+                            data0_reg[write_ptr0][255:0] <= S_AXIS_TDATA[255:0];
+                            data0_reg[write_ptr0][511:256] <= S_AXIS_TDATA[511:256];
+                            keep0_reg[write_ptr0][7:0] <= keep0_masked[7:0];
+                            keep0_reg[write_ptr0][15:8] <= keep0_masked[15:8];
+                        end else begin
+                            // Lane 00 already filled, write lane 00 to upper half, lane 10 to next position
+                            buffer0_lane0_filled <= 1;
+                            data0_reg[write_ptr0][511:256] <= S_AXIS_TDATA[255:0];
+                            data0_reg[write_ptr0+1][255:0] <= S_AXIS_TDATA[511:256];
+                            keep0_reg[write_ptr0][15:8] <= keep0_masked[7:0];
+                            keep0_reg[write_ptr0+1][7:0] <= keep0_masked[15:8];
+                        end
+                    end
+                    default: begin // 2'b00 - no lanes active, shouldn't happen
+                        buffer0_lane0_filled <= buffer0_lane0_filled;
+                    end
+                endcase
+                
+                // Mark EOP bit if TLP0 is ending - check if writing to write_ptr0 or write_ptr0+1
+                if (tlp_active_current[0] && !tlp_active_next[0]) begin
+                    // Determine where EOP should be marked based on where data was written
+                    if (byte_lane_tracker_current[1] && buffer0_lane0_filled && byte_lane_tracker_current[0]) begin
+                        // Writing to write_ptr0+1 (lane 10 data goes to next position's lane 00)
+                        buffer0_eop[write_ptr0+1] <= 1'b1;
+                    end else begin
+                        // Writing to write_ptr0
+                        buffer0_eop[write_ptr0] <= 1'b1;
+                    end
+                end else begin
+                    buffer0_eop[write_ptr0] <= 1'b0;
                 end
                 
-                // Mark EOP bit if TLP0 is ending
-                buffer0_eop[write_ptr0] <= (tlp_active_current[0] && !tlp_active_next[0]);
-                write_ptr0 <= write_ptr0 + 1;
+                // Increment write pointer when both lanes filled or EOP detected
+                if (tlp_active_current[0] && !tlp_active_next[0]) begin
+                    // EOP detected - always increment and clear lane0_filled
+                    write_ptr0 <= next_write_ptr0;
+                    buffer0_lane0_filled <= 0;
+                end else begin
+                    casez({buffer0_lane0_filled, byte_lane_tracker_current[1:0]})
+                        3'b11?: write_ptr0 <= next_write_ptr0;
+                        3'b1?1: write_ptr0 <= next_write_ptr0;
+                        3'b?11: write_ptr0 <= next_write_ptr0;
+                        default: write_ptr0 <= write_ptr0;
+                    endcase
+                end
             end
-            
             // Write to buffer1 if TLP1 is active
             if (tlp_active_current[1]) begin
                 // Extract correct byte lanes based on byte_lane_tracker[3:2]
-                if (byte_lane_tracker_current[3:2] == 2'b11) begin
-                    // TLP1 uses full 512 bits
-                    data1_reg[write_ptr1] <= S_AXIS_TDATA;
-                    keep1_reg[write_ptr1] <= keep1_masked;
-                end else if (byte_lane_tracker_current[3:2] == 2'b01) begin
-                    // TLP1 uses lane 00 (bits 255:0)
-                    data1_reg[write_ptr1] <= {256'b0, S_AXIS_TDATA[255:0]};
-                    keep1_reg[write_ptr1] <= {8'b0, keep1_masked[7:0]};
-                end else if (byte_lane_tracker_current[3:2] == 2'b10) begin
-                    // TLP1 uses lane 10 (bits 511:256)
-                    data1_reg[write_ptr1] <= {S_AXIS_TDATA[511:256], 256'b0};
-                    keep1_reg[write_ptr1] <= {keep1_masked[15:8], 8'b0};
+                case (byte_lane_tracker_current[3:2])
+                    2'b01: begin // Only lane 00 active
+                        if (!buffer1_lane0_filled) begin
+                            buffer1_lane0_filled <= 1;
+                            data1_reg[write_ptr1][255:0] <= S_AXIS_TDATA[255:0];
+                            keep1_reg[write_ptr1][7:0] <= keep1_masked[7:0];
+                        end else begin
+                            buffer1_lane0_filled <= 0;
+                            data1_reg[write_ptr1][511:256] <= S_AXIS_TDATA[255:0];
+                            keep1_reg[write_ptr1][15:8] <= keep1_masked[7:0];
+                        end
+                    end
+                    2'b10: begin // Only lane 10 active
+                        if (!buffer1_lane0_filled) begin
+                            buffer1_lane0_filled <= 1;
+                            data1_reg[write_ptr1][255:0] <= S_AXIS_TDATA[511:256];
+                            keep1_reg[write_ptr1][7:0] <= keep1_masked[15:8];
+                        end else begin
+                            buffer1_lane0_filled <= 0;
+                            data1_reg[write_ptr1][511:256] <= S_AXIS_TDATA[511:256];
+                            keep1_reg[write_ptr1][15:8] <= keep1_masked[15:8];
+                        end
+                    end
+                    2'b11: begin // Both lanes active
+                        if (!buffer1_lane0_filled) begin
+                            // Write lane 00 to current position, lane 10 to upper half
+                            buffer1_lane0_filled <= 0;
+                            data1_reg[write_ptr1][255:0] <= S_AXIS_TDATA[255:0];
+                            data1_reg[write_ptr1][511:256] <= S_AXIS_TDATA[511:256];
+                            keep1_reg[write_ptr1][7:0] <= keep1_masked[7:0];
+                            keep1_reg[write_ptr1][15:8] <= keep1_masked[15:8];
+                        end else begin
+                            // Lane 00 already filled, write lane 00 to upper half, lane 10 to next position
+                            buffer1_lane0_filled <= 1;
+                            data1_reg[write_ptr1][511:256] <= S_AXIS_TDATA[255:0];
+                            data1_reg[write_ptr1+1][255:0] <= S_AXIS_TDATA[511:256];
+                            keep1_reg[write_ptr1][15:8] <= keep1_masked[7:0];
+                            keep1_reg[write_ptr1+1][7:0] <= keep1_masked[15:8];
+                        end
+                    end
+                    default: begin // 2'b00 - no lanes active, shouldn't happen
+                        buffer1_lane0_filled <= buffer1_lane0_filled;
+                    end
+                endcase
+                
+                // Mark EOP bit if TLP1 is ending - check if writing to write_ptr1 or write_ptr1+1
+                if (tlp_active_current[1] && !tlp_active_next[1]) begin
+                    // Determine where EOP should be marked based on where data was written
+                    if (byte_lane_tracker_current[3] && buffer1_lane0_filled && byte_lane_tracker_current[2]) begin
+                        // Writing to write_ptr1+1 (lane 10 data goes to next position's lane 00)
+                        buffer1_eop[write_ptr1+1] <= 1'b1;
+                    end else begin
+                        // Writing to write_ptr1
+                        buffer1_eop[write_ptr1] <= 1'b1;
+                    end
+                end else begin
+                    buffer1_eop[write_ptr1] <= 1'b0;
                 end
                 
-                // Mark EOP bit if TLP1 is ending
-                buffer1_eop[write_ptr1] <= (tlp_active_current[1] && !tlp_active_next[1]);
-                write_ptr1 <= write_ptr1 + 1;
+                // Increment write pointer when both lanes filled or EOP detected
+                if (tlp_active_current[1] && !tlp_active_next[1]) begin
+                    // EOP detected - always increment and clear lane0_filled
+                    write_ptr1 <= next_write_ptr1;
+                    buffer1_lane0_filled <= 0;
+                end else begin
+                    casez({buffer1_lane0_filled, byte_lane_tracker_current[3:2]})
+                        3'b11?: write_ptr1 <= next_write_ptr1;
+                        3'b1?1: write_ptr1 <= next_write_ptr1;
+                        3'b?11: write_ptr1 <= next_write_ptr1;
+                        default: write_ptr1 <= write_ptr1;
+                    endcase
+                end
             end
         end
 
@@ -305,10 +442,12 @@ always @(posedge ACLK) begin
         end
 
         // Update buffer status
-        buffer0_empty <= (write_ptr0 == read_ptr0);
-        buffer0_full  <= (write_ptr0 + 1 == read_ptr0) || ((write_ptr0 == BUFFER_SIZE - 1) && (read_ptr0 == 0));
-        buffer1_empty <= (write_ptr1 == read_ptr1);
-        buffer1_full  <= (write_ptr1 + 1 == read_ptr1) || ((write_ptr1 == BUFFER_SIZE - 1) && (read_ptr1 == 0));
+        buffer0_empty <= (write_ptr0 == read_ptr0) && (buffer0_lanes_valid == 2'b00);
+        // Buffer is full if next position would equal read pointer, OR if lane0_filled and next+1 would be full
+        buffer0_full  <= buffer0_would_be_full || (buffer0_lane0_filled && buffer0_next_would_be_full);
+        
+        buffer1_empty <= (write_ptr1 == read_ptr1) && (buffer1_lanes_valid == 2'b00);
+        buffer1_full  <= buffer1_would_be_full || (buffer1_lane0_filled && buffer1_next_would_be_full);
     end
 end
 endmodule
