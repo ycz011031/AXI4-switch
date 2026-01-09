@@ -4,7 +4,7 @@ module straddle_converter_tb;
 
 // Parameters
 parameter integer AXI_TUSER_L = 161;
-parameter integer BUFFER_SIZE = 1024;
+parameter integer BUFFER_SIZE = 8;
 parameter CLK_PERIOD = 10; // 10ns = 100MHz
 
 // Clock and Reset

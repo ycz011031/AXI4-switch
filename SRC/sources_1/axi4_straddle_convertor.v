@@ -1,7 +1,7 @@
 module axi4_straddle_convertor #
 (
     parameter integer AXI_TUSER_L        = 161,
-    parameter integer BUFFER_SIZE        = 3
+    parameter integer BUFFER_SIZE        = 1024
 )
 (
     // Global Signals
@@ -25,7 +25,7 @@ module axi4_straddle_convertor #
     input wire                                 M_AXIS_TREADY,
     
     // Error output
-    output reg                                 error_invalid_state
+    output reg [1:0]                                error_invalid_state
 );
 
 
@@ -34,7 +34,6 @@ module axi4_straddle_convertor #
 reg [511:0] data0_reg [0:BUFFER_SIZE-1];
 reg [15:0]  keep0_reg [0:BUFFER_SIZE-1];
 
-
 reg [511:0] data1_reg [0:BUFFER_SIZE-1];
 reg [15:0]  keep1_reg [0:BUFFER_SIZE-1];
 
@@ -42,10 +41,17 @@ reg [15:0]  keep1_reg [0:BUFFER_SIZE-1];
 reg [$clog2(BUFFER_SIZE)-1:0] write_ptr0, read_ptr0;
 reg [$clog2(BUFFER_SIZE)-1:0] write_ptr1, read_ptr1;
 
+reg illegal_sop_encountered;
+reg illegal_eop_encountered;
+
 reg buffer1_full, buffer1_empty;
 reg buffer0_full, buffer0_empty;
 reg [1:0] tlp_active;
 reg [1:0] tlp_active_next;
+reg [1:0] tlp_active_current;
+
+reg old_tlp;
+reg old_tlp_current;
 
 // EOP bit vectors to track TLP boundaries in each buffer
 reg [BUFFER_SIZE-1:0] buffer0_eop;
@@ -57,6 +63,7 @@ reg reading_from_buffer0;  // Tracks which buffer we're currently reading from
 // [3:2] - byte lanes for TLP1 (bit 2 = lane 00, bit 3 = lane 10)
 reg [3:0] byte_lane_tracker;
 reg [3:0] byte_lane_tracker_next;
+reg [3:0] byte_lane_tracker_current;
 
 // Delayed EOP signals for one-cycle delay in processing
 reg [3:0] is_eop_delayed;
@@ -64,6 +71,7 @@ reg [3:0] is_eop_delayed;
 // Masked TKEEP signals for EOP handling
 reg [15:0] keep0_masked;
 reg [15:0] keep1_masked;
+reg [15:0] mask0, mask1;
 
 wire [3:0]  is_sop;
 wire [3:0]  is_eop;
@@ -99,76 +107,92 @@ always @(*) begin
     // Default: pass through TKEEP unchanged
     keep0_masked = S_AXIS_TKEEP;
     keep1_masked = S_AXIS_TKEEP;
+    mask0 = S_AXIS_TKEEP & ((16'h1 << (is_eop0_ptr + 1)) - 1);
+    mask1 = S_AXIS_TKEEP & ((16'h1 << (is_eop1_ptr + 1)) - 1);
+    
     
     if (S_AXIS_TVALID && S_AXIS_TREADY) begin
         // Apply EOP mask for TLP0 if it's ending
-        if (tlp_active[0] && !tlp_active_next[0]) begin
-            // Create mask: all 1s up to and including eop_offset, then 0s
-            keep0_masked = S_AXIS_TKEEP & ((16'h1 << (is_eop0_ptr + 1)) - 1);
+        if (tlp_active_current[0] && !tlp_active_next[0]) begin
+            // when both TLP is ending, apply mask0 when TLP0 is old TLP
+            keep0_masked = (is_eop[0]&&(!old_tlp_current)) ? mask0 : mask1;
         end
         
         // Apply EOP mask for TLP1 if it's ending
-        if (tlp_active[1] && !tlp_active_next[1]) begin
-            // Create mask: all 1s up to and including eop_offset, then 0s
-            keep1_masked = S_AXIS_TKEEP & ((16'h1 << (is_eop1_ptr + 1)) - 1);
+        if (tlp_active_current[1] && !tlp_active_next[1]) begin
+            // when both TLP is ending, apply mask1 when TLP1 is old TLP 
+            keep1_masked = (is_eop[1]&&old_tlp_current) ? mask1 : mask0;
         end
     end
 end
 
 // Combinational logic for next state of tlp_active and byte_lane_tracker
 always @(*) begin
-    tlp_active_next = tlp_active;
-    byte_lane_tracker_next = byte_lane_tracker;
+    tlp_active_next            = tlp_active;
+    byte_lane_tracker_next     = byte_lane_tracker;
     
     if (S_AXIS_TVALID && S_AXIS_TREADY) begin
         // Handle SOP (start of packet) - left shift and fill with 1
-        if (is_sop[1] && is_sop[0]) begin
-            // Both starting: left shift by 2, fill lower 2 bits with 1
-            tlp_active_next = {tlp_active[1:0], 2'b11};
-            // Left shift byte lane tracker by 4 bits (2 TLPs worth)
-            // New TLP0 at is_sop0_ptr, new TLP1 at is_sop1_ptr
-            byte_lane_tracker_next = {byte_lane_tracker[1:0], 
-                                     (is_sop1_ptr == 2'b10) ? 2'b10 : 2'b01,
-                                     (is_sop0_ptr == 2'b10) ? 2'b10 : 2'b01};
-        end else if (is_sop[1]) begin
-            // Second lane starting: left shift by 2
-            tlp_active_next = {tlp_active[1:0], 2'b10};
-            byte_lane_tracker_next = {byte_lane_tracker[1:0],
-                                     (is_sop1_ptr == 2'b10) ? 2'b10 : 2'b01,
-                                     2'b00};
-        end else if (is_sop[0]) begin
-            // Only first lane starting: left shift by 1, fill with 1
-            tlp_active_next = {tlp_active[0], 1'b1};
-            // Left shift byte lane tracker by 2 bits (1 TLP worth)
-            // Check if lane 10 is free - if so, TLP can use both lanes
-            if (is_sop0_ptr == 2'b00) begin
-                // Starting at lane 00
-                if (byte_lane_tracker[3] == 0) begin
-                    // Lane 10 is free, claim both lanes
-                    byte_lane_tracker_next = {byte_lane_tracker[1:0], 2'b11};
-                end else begin
-                    // Lane 10 is occupied, only claim lane 00
-                    byte_lane_tracker_next = {byte_lane_tracker[1:0], 2'b01};
-                end
-            end else begin
-                // Starting at lane 10, only claim lane 10
-                byte_lane_tracker_next = {byte_lane_tracker[1:0], 2'b10};
+        casez ({is_sop[1:0],tlp_active})
+            4'b11??:begin
+                tlp_active_current        = 2'b11;
+                byte_lane_tracker_current = 4'b1001;
+                old_tlp_current           = 1'b0;
             end
-        end
-    end
-    
-    // Handle EOP (end of packet) - right shift and zero pad
-    // Use delayed EOP to process one cycle after EOP arrives
-    if (is_eop_delayed[1] && is_eop_delayed[0]) begin
-        // Both ending: right shift by 2, zero pad upper bits
-        tlp_active_next = {2'b00, tlp_active_next[1:0]};
-        // Right shift byte lane tracker by 4 bits
-        byte_lane_tracker_next = {4'b0000, byte_lane_tracker_next[3:2]};
-    end else if (is_eop_delayed[0]) begin
-        // Only first lane ending: right shift by 1, zero pad
-        tlp_active_next = {1'b0, tlp_active_next[1]};
-        // Right shift byte lane tracker by 2 bits
-        byte_lane_tracker_next = {2'b00, byte_lane_tracker_next[3:2]};
+            4'b0100:begin
+                tlp_active_current        = 2'b01; // TLP0 starting
+                byte_lane_tracker_current = (is_sop0_ptr == 2'b00) ? 4'b0011 : 4'b0010;
+                old_tlp_current           = 1'b0;
+            end
+            4'b0101:begin
+                tlp_active_current        = 2'b11; // TLP1 starting
+                byte_lane_tracker_current = (is_sop0_ptr == 2'b00) ? 4'b0110 : 4'b1001;
+                old_tlp_current           = 1'b0;
+            end
+            4'b0110:begin
+                tlp_active_current        = 2'b11; // TLP0 starting
+                byte_lane_tracker_current = (is_sop0_ptr == 2'b00) ? 4'b1001 : 4'b0110;
+                old_tlp_current           = 1'b1;
+            end
+            4'b00??:begin
+                tlp_active_current        = tlp_active;
+                byte_lane_tracker_current = byte_lane_tracker;
+                old_tlp_current           = old_tlp;
+            end
+            default:begin
+                tlp_active_current        = tlp_active;
+                byte_lane_tracker_current = byte_lane_tracker;
+                old_tlp_current           = old_tlp;
+                illegal_sop_encountered   = 1'b1;
+            end
+        endcase
+        casez ({is_eop[1:0],tlp_active_current})
+            4'b1111:begin
+                tlp_active_next           = 2'b00;
+                byte_lane_tracker_next    = 4'b0000;
+            end
+            4'b0111:begin
+                tlp_active_next           = (!old_tlp_current)? 2'b10 : 2'b01; // TLP0 ending
+                byte_lane_tracker_next    = (!old_tlp_current)? 4'b1100 : 4'b0011;
+            end
+            4'b0101:begin
+                tlp_active_next           = 2'b00; // TLP0 ending
+                byte_lane_tracker_next    = 4'b0000; //all bytelane released
+            end
+            4'b0110:begin
+                tlp_active_next           = 2'b00; // TLP1 ending
+                byte_lane_tracker_next    = 4'b0000;
+            end
+            4'b00??:begin
+                tlp_active_next           = tlp_active_current;
+                byte_lane_tracker_next    = byte_lane_tracker_current;
+            end
+            default:begin
+                tlp_active_next           = tlp_active_current;
+                byte_lane_tracker_next    = byte_lane_tracker_current;
+                illegal_eop_encountered   = 1'b1;
+            end
+        endcase 
     end
 end
 
@@ -176,87 +200,82 @@ end
 always @(posedge ACLK) begin
     if (!ARESETN) begin
         write_ptr0 <= 0;
-        read_ptr0 <= 0;
+        read_ptr0  <= 0;
         write_ptr1 <= 0;
-        read_ptr1 <= 0;
+        read_ptr1  <= 0;
         
-        tlp_active <= 2'b00;
+        tlp_active        <= 2'b00;
         byte_lane_tracker <= 4'b0000;
-        is_eop_delayed <= 4'b0000;
-        buffer0_full <= 0;
-        buffer0_empty <= 1;
-        buffer1_full <= 0;
-        buffer1_empty <= 1;
+        is_eop_delayed    <= 4'b0000;
+        buffer0_full      <= 0;
+        buffer0_empty     <= 1;
+        buffer1_full      <= 0;
+        buffer1_empty     <= 1;
+        old_tlp           <= 0;
         
         buffer0_eop <= {BUFFER_SIZE{1'b0}};
         buffer1_eop <= {BUFFER_SIZE{1'b0}};
-        reading_from_buffer0 <= 1;  // Start with buffer0
-        
-        error_invalid_state <= 0;
+       
+        reading_from_buffer0 <= 1;  // Start with buffer0 
+        error_invalid_state  <= 2'b00;
 
     end else begin
         is_eop_delayed <= (S_AXIS_TVALID)? is_eop : 4'b1111;
+        old_tlp        <= old_tlp_current;
         
         // Update TLP active state and byte lane tracker
-        tlp_active <= tlp_active_next;
-        byte_lane_tracker <= byte_lane_tracker_next;
+        tlp_active        <= S_AXIS_TREADY? tlp_active_next : tlp_active_current;
+        byte_lane_tracker <= S_AXIS_TREADY? byte_lane_tracker_next : byte_lane_tracker_current;
         
-        // Error detection for invalid states
-        error_invalid_state <= 0;  // Default: no error
+
         if (S_AXIS_TVALID && S_AXIS_TREADY) begin
             // Error: is_sop[1] should not be high when any TLP is already active
-            if (is_sop[1] && (tlp_active[0] || tlp_active[1])) begin
-                error_invalid_state <= 1;
-            end
-            // Error: is_eop[1] should not be high unless a second TLP is active
-            if (is_eop[1] && !tlp_active[1]) begin
-                error_invalid_state <= 1;
-            end
+            error_invalid_state <= error_invalid_state |{illegal_sop_encountered, illegal_eop_encountered};
         end
         
         // Handle S_AXIS transaction - buffer writes
         if (S_AXIS_TVALID && S_AXIS_TREADY) begin
             // Write to buffer0 if TLP0 is active
-            if (tlp_active_next[0]) begin
+            if (tlp_active_current[0]) begin
                 // Extract correct byte lanes based on byte_lane_tracker[1:0]
-                if (byte_lane_tracker[1:0] == 2'b11) begin
+                if (byte_lane_tracker_current[1:0] == 2'b11) begin
                     // TLP0 uses full 512 bits
                     data0_reg[write_ptr0] <= S_AXIS_TDATA;
                     keep0_reg[write_ptr0] <= keep0_masked;
-                end else if (byte_lane_tracker[1:0] == 2'b01) begin
+                end else if (byte_lane_tracker_current[1:0] == 2'b01) begin
                     // TLP0 uses lane 00 (bits 255:0)
                     data0_reg[write_ptr0] <= {256'b0, S_AXIS_TDATA[255:0]};
                     keep0_reg[write_ptr0] <= {8'b0, keep0_masked[7:0]};
-                end else if (byte_lane_tracker[1:0] == 2'b10) begin
+                end else if (byte_lane_tracker_current[1:0] == 2'b10) begin
                     // TLP0 uses lane 10 (bits 511:256)
                     data0_reg[write_ptr0] <= {S_AXIS_TDATA[511:256], 256'b0};
                     keep0_reg[write_ptr0] <= {keep0_masked[15:8], 8'b0};
                 end
                 
                 // Mark EOP bit if TLP0 is ending
-                buffer0_eop[write_ptr0] <= (tlp_active[0] && !tlp_active_next[0]);
+                buffer0_eop[write_ptr0] <= (tlp_active_current[0] && !tlp_active_next[0]);
                 write_ptr0 <= write_ptr0 + 1;
             end
             
             // Write to buffer1 if TLP1 is active
-            if (tlp_active_next[1]) begin
+            if (tlp_active_current[1]) begin
                 // Extract correct byte lanes based on byte_lane_tracker[3:2]
-                if (byte_lane_tracker[3:2] == 2'b11) begin
+                if (byte_lane_tracker_current[3:2] == 2'b11) begin
                     // TLP1 uses full 512 bits
                     data1_reg[write_ptr1] <= S_AXIS_TDATA;
                     keep1_reg[write_ptr1] <= keep1_masked;
-                end else if (byte_lane_tracker[3:2] == 2'b01) begin
+                end else if (byte_lane_tracker_current[3:2] == 2'b01) begin
                     // TLP1 uses lane 00 (bits 255:0)
                     data1_reg[write_ptr1] <= {256'b0, S_AXIS_TDATA[255:0]};
                     keep1_reg[write_ptr1] <= {8'b0, keep1_masked[7:0]};
-                end else if (byte_lane_tracker[3:2] == 2'b10) begin
+                end else if (byte_lane_tracker_current[3:2] == 2'b10) begin
                     // TLP1 uses lane 10 (bits 511:256)
                     data1_reg[write_ptr1] <= {S_AXIS_TDATA[511:256], 256'b0};
                     keep1_reg[write_ptr1] <= {keep1_masked[15:8], 8'b0};
                 end
                 
                 // Mark EOP bit if TLP1 is ending
-                buffer1_eop[write_ptr1] <= (tlp_active[1] && !tlp_active_next[1]);
+                buffer1_eop[write_ptr1] <= (tlp_active_current[1] && !tlp_active_next[1]);
                 write_ptr1 <= write_ptr1 + 1;
             end
         end
@@ -280,9 +299,9 @@ always @(posedge ACLK) begin
 
         // Update buffer status
         buffer0_empty <= (write_ptr0 == read_ptr0);
-        buffer0_full <= (write_ptr0 + 1 == read_ptr0) || ((write_ptr0 == BUFFER_SIZE - 1) && (read_ptr0 == 0));
+        buffer0_full  <= (write_ptr0 + 1 == read_ptr0) || ((write_ptr0 == BUFFER_SIZE - 1) && (read_ptr0 == 0));
         buffer1_empty <= (write_ptr1 == read_ptr1);
-        buffer1_full <= (write_ptr1 + 1 == read_ptr1) || ((write_ptr1 == BUFFER_SIZE - 1) && (read_ptr1 == 0));
+        buffer1_full  <= (write_ptr1 + 1 == read_ptr1) || ((write_ptr1 == BUFFER_SIZE - 1) && (read_ptr1 == 0));
     end
 end
 endmodule
