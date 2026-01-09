@@ -41,7 +41,7 @@ wire M_AXIS_TVALID;
 reg M_AXIS_TREADY;
 
 // Error output
-wire error_invalid_state;
+wire [1:0] error_invalid_state;
 
 // Combinationally construct S_AXIS_TUSER from individual signals
 assign S_AXIS_TUSER[63:0]   = 64'b0;              // [63:0] - unused, set to 0
@@ -208,7 +208,7 @@ initial begin
         .eop1_ptr_val(4'b0000),
         .disc(1'b0),
         .lane1_data(8'hAA),      // Data 0xAA in lane 00
-        .lane2_data(8'h00),
+        .lane2_data(8'hAA),
         .tlast(1'b0)
     );
     
@@ -221,7 +221,62 @@ initial begin
         .eop1_ptr_val(4'b0000),
         .disc(1'b0),
         .lane1_data(8'hBB),
-        .lane2_data(8'h00),
+        .lane2_data(8'hBB),
+        .tlast(1'b0)
+    );
+
+    repeat(5) tick();
+
+
+    send_beat(
+        .sop(4'b0001),
+        .eop(4'b0001),           // EOP on lane 0
+        .sop0_ptr_val(2'b00),
+        .sop1_ptr_val(2'b00),
+        .eop0_ptr_val(4'b1111),  // EOP0 at byte 7
+        .eop1_ptr_val(4'b0000),
+        .disc(1'b0),
+        .lane1_data(8'h11),
+        .lane2_data(8'h11),
+        .tlast(1'b0)
+    );
+
+    repeat(5) tick();
+
+    send_beat(
+        .sop(4'b0001),
+        .eop(4'b0000),           // EOP on lane 0
+        .sop0_ptr_val(2'b00),
+        .sop1_ptr_val(2'b00),
+        .eop0_ptr_val(4'b0000),  // EOP0 at byte 7
+        .eop1_ptr_val(4'b0000),
+        .disc(1'b0),
+        .lane1_data(8'h22),
+        .lane2_data(8'h22),
+        .tlast(1'b0)
+    );
+    send_beat(
+        .sop(4'b0001),
+        .eop(4'b0000),           // EOP on lane 0
+        .sop0_ptr_val(2'b10),
+        .sop1_ptr_val(2'b00),
+        .eop0_ptr_val(4'b0000),  // EOP0 at byte 7
+        .eop1_ptr_val(4'b0000),
+        .disc(1'b0),
+        .lane1_data(8'h22),
+        .lane2_data(8'h33),
+        .tlast(1'b0)
+    );
+    send_beat(
+        .sop(4'b0000),
+        .eop(4'b0011),           // EOP on lane 0
+        .sop0_ptr_val(2'b00),
+        .sop1_ptr_val(2'b00),
+        .eop0_ptr_val(4'b0111),  // EOP0 at byte 7
+        .eop1_ptr_val(4'b1111),
+        .disc(1'b0),
+        .lane1_data(8'h22),
+        .lane2_data(8'h33),
         .tlast(1'b0)
     );
     

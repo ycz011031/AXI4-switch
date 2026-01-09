@@ -95,11 +95,14 @@ assign S_AXIS_TREADY = !buffer0_full && !buffer1_full;
 wire buffer0_has_data = (write_ptr0 != read_ptr0);
 wire buffer1_has_data = (write_ptr1 != read_ptr1);
 
-assign M_AXIS_TVALID = reading_from_buffer0 ? buffer0_has_data : buffer1_has_data;
-assign M_AXIS_TDATA = reading_from_buffer0 ? data0_reg[read_ptr0] : data1_reg[read_ptr1];
-assign M_AXIS_TKEEP = reading_from_buffer0 ? keep0_reg[read_ptr0] : keep1_reg[read_ptr1];
+// Use reading_from_buffer0 as tiebreaker when both buffers have data
+wire actual_read_from_buffer0 = buffer0_has_data && (!buffer1_has_data || reading_from_buffer0);
+
+assign M_AXIS_TVALID = buffer0_has_data || buffer1_has_data;
+assign M_AXIS_TDATA = actual_read_from_buffer0 ? data0_reg[read_ptr0] : data1_reg[read_ptr1];
+assign M_AXIS_TKEEP = actual_read_from_buffer0 ? keep0_reg[read_ptr0] : keep1_reg[read_ptr1];
 assign M_AXIS_TUSER = S_AXIS_TUSER; // This might need more complex logic
-assign M_AXIS_TLAST = reading_from_buffer0 ? buffer0_eop[read_ptr0] : buffer1_eop[read_ptr1];
+assign M_AXIS_TLAST = actual_read_from_buffer0 ? buffer0_eop[read_ptr0] : buffer1_eop[read_ptr1];
 
 
 // Combinational logic for TKEEP masking based on EOP
@@ -129,7 +132,11 @@ end
 // Combinational logic for next state of tlp_active and byte_lane_tracker
 always @(*) begin
     tlp_active_next            = tlp_active;
+    tlp_active_current         = tlp_active;
+    byte_lane_tracker_current  = byte_lane_tracker;
     byte_lane_tracker_next     = byte_lane_tracker;
+    illegal_sop_encountered    = 1'b0;
+    illegal_eop_encountered    = 1'b0;
     
     if (S_AXIS_TVALID && S_AXIS_TREADY) begin
         // Handle SOP (start of packet) - left shift and fill with 1
@@ -282,16 +289,16 @@ always @(posedge ACLK) begin
 
         // Handle M_AXIS transaction (reading from buffer) - switch on EOP
         if (M_AXIS_TVALID && M_AXIS_TREADY) begin
-            if (reading_from_buffer0) begin
+            if (actual_read_from_buffer0) begin
                 read_ptr0 <= read_ptr0 + 1;
-                // Switch to buffer1 if we just read an EOP
-                if (buffer0_eop[read_ptr0]) begin
+                // Update reading_from_buffer0 only at EOP and when both buffers have data
+                if (buffer0_eop[read_ptr0] && buffer1_has_data) begin
                     reading_from_buffer0 <= 0;
                 end
             end else begin
                 read_ptr1 <= read_ptr1 + 1;
-                // Switch to buffer0 if we just read an EOP
-                if (buffer1_eop[read_ptr1]) begin
+                // Update reading_from_buffer0 only at EOP and when both buffers have data
+                if (buffer1_eop[read_ptr1] && buffer0_has_data) begin
                     reading_from_buffer0 <= 1;
                 end
             end
