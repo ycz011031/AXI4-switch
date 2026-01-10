@@ -1,4 +1,4 @@
-# AXI4 Switch Project - Source Modules Overview
+# AXI4 Utilities - Source Modules Overview
 
 This README provides an overview of the main Verilog modules found in the `SRC/sources_1` directory of this project. These modules are designed for AXI4-Stream data switching and conversion, typically used in FPGA-based data path designs.
 
