@@ -63,6 +63,9 @@ reg [BUFFER_SIZE-1:0] buffer0_eop;
 reg [BUFFER_SIZE-1:0] buffer1_eop;
 reg reading_from_buffer0;  // Tracks which buffer we're currently reading from
 
+// Track start of packet for output
+reg output_is_sop;  // Next output beat is SOP
+
 // Byte lane tracker: tracks which byte lane each TLP occupies
 // [1:0] - byte lanes for TLP0 (bit 0 = lane 00, bit 1 = lane 10)
 // [3:2] - byte lanes for TLP1 (bit 2 = lane 00, bit 3 = lane 10)
@@ -122,8 +125,44 @@ wire actual_read_from_buffer0 = buffer0_has_data && (!buffer1_has_data || readin
 assign M_AXIS_TVALID = buffer0_has_data || buffer1_has_data;
 assign M_AXIS_TDATA = actual_read_from_buffer0 ? data0_reg[read_ptr0] : data1_reg[read_ptr1];
 assign M_AXIS_TKEEP = actual_read_from_buffer0 ? keep0_reg[read_ptr0] : keep1_reg[read_ptr1];
-assign M_AXIS_TUSER = S_AXIS_TUSER; // This might need more complex logic
 assign M_AXIS_TLAST = actual_read_from_buffer0 ? buffer0_eop[read_ptr0] : buffer1_eop[read_ptr1];
+
+// Generate output TUSER fields
+reg [3:0] output_eop_ptr;
+reg [AXI_TUSER_L-1:0] output_tuser;
+
+always @(*) begin
+    // Calculate EOP pointer from TKEEP (find last valid byte)
+    output_eop_ptr = 4'b0000;
+    if (M_AXIS_TKEEP[15]) output_eop_ptr = 4'd15;
+    else if (M_AXIS_TKEEP[14]) output_eop_ptr = 4'd14;
+    else if (M_AXIS_TKEEP[13]) output_eop_ptr = 4'd13;
+    else if (M_AXIS_TKEEP[12]) output_eop_ptr = 4'd12;
+    else if (M_AXIS_TKEEP[11]) output_eop_ptr = 4'd11;
+    else if (M_AXIS_TKEEP[10]) output_eop_ptr = 4'd10;
+    else if (M_AXIS_TKEEP[9]) output_eop_ptr = 4'd9;
+    else if (M_AXIS_TKEEP[8]) output_eop_ptr = 4'd8;
+    else if (M_AXIS_TKEEP[7]) output_eop_ptr = 4'd7;
+    else if (M_AXIS_TKEEP[6]) output_eop_ptr = 4'd6;
+    else if (M_AXIS_TKEEP[5]) output_eop_ptr = 4'd5;
+    else if (M_AXIS_TKEEP[4]) output_eop_ptr = 4'd4;
+    else if (M_AXIS_TKEEP[3]) output_eop_ptr = 4'd3;
+    else if (M_AXIS_TKEEP[2]) output_eop_ptr = 4'd2;
+    else if (M_AXIS_TKEEP[1]) output_eop_ptr = 4'd1;
+    else output_eop_ptr = 4'd0;
+    
+    // Build output TUSER
+    if (AXI_TUSER_L == 161) begin
+        output_tuser = {161{1'b0}};
+        output_tuser[64] = output_is_sop;  // is_sop[0]
+        output_tuser[76] = M_AXIS_TLAST;   // is_eop[0]
+        output_tuser[83:80] = output_eop_ptr;  // eop0_ptr
+    end else begin
+        output_tuser = {AXI_TUSER_L{1'b0}};
+    end
+end
+
+assign M_AXIS_TUSER = output_tuser&{AXI_TUSER_L{M_AXIS_TVALID}};
 
 
 // Combinational logic for TKEEP masking based on EOP
@@ -251,7 +290,8 @@ always @(posedge ACLK) begin
         buffer0_lane0_filled <= 0;
         buffer1_lane0_filled <= 0;
 
-        reading_from_buffer0 <= 1;  // Start with buffer0 
+        reading_from_buffer0 <= 1;  // Start with buffer0
+        output_is_sop <= 1;  // First output is SOP
         error_invalid_state  <= 2'b00;
 
     end else begin
@@ -432,11 +472,23 @@ always @(posedge ACLK) begin
                 if (buffer0_eop[read_ptr0] && buffer1_has_data) begin
                     reading_from_buffer0 <= 0;
                 end
+                // Set SOP for next beat if current beat is EOP
+                if (buffer0_eop[read_ptr0]) begin
+                    output_is_sop <= 1;
+                end else begin
+                    output_is_sop <= 0;
+                end
             end else begin
                 read_ptr1 <= read_ptr1 + 1;
                 // Update reading_from_buffer0 only at EOP and when both buffers have data
                 if (buffer1_eop[read_ptr1] && buffer0_has_data) begin
                     reading_from_buffer0 <= 1;
+                end
+                // Set SOP for next beat if current beat is EOP
+                if (buffer1_eop[read_ptr1]) begin
+                    output_is_sop <= 1;
+                end else begin
+                    output_is_sop <= 0;
                 end
             end
         end
